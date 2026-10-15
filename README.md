@@ -45,26 +45,35 @@ Una oficina completa para agentes de IA, lista para un VPS con Docker:
 | `docker-compose.yml` | `office` + `obsidian` (Obsidian en el navegador) + opcionales `caddy` (HTTPS) y `syncthing` (sincronizar el vault con tu PC). |
 | `office.sh` | Atajos: `setup`, `up`, `url`, `chat`, `task`, `board`, `claude`, `backup`… |
 
-## Instalación en el VPS
+## Instalación en el VPS (Hostinger u otro)
 
-Requisitos: Linux con Docker Engine y el plugin Compose, 4 GB de RAM como mínimo (8 GB recomendado) y una clave de modelo (OpenRouter, Anthropic, Nous Portal u OpenAI).
+Requisitos: VPS con Ubuntu/Debian, **8 GB de RAM** recomendados (Hostinger KVM 2 o superior) y una cuenta de Claude.
+
+**Un solo comando** (como root, por SSH o desde el terminal del navegador de hPanel):
 
 ```bash
-git clone <este-repo> oficina-ia && cd oficina-ia     # o descomprime el .tar.gz
-./office.sh setup          # crea .env con contraseñas aleatorias y ./data
-nano .env                  # añade OPENROUTER_API_KEY y/o ANTHROPIC_API_KEY y elige modelos
-./office.sh up             # construye la imagen y arranca (la primera vez tarda unos minutos)
+curl -fsSL https://raw.githubusercontent.com/<usuario>/oficina-ia/main/install.sh | bash -s -- <usuario>
 ```
 
-### Claude Code
+Instala Docker si falta, añade swap si hace falta, descarga el proyecto en `/opt/oficina-ia`, genera `.env` con contraseñas aleatorias, construye y arranca. Después:
 
-Elige una:
-- Pon `ANTHROPIC_API_KEY` en `.env` (facturación por API), o
-- Usa tu suscripción Claude: `./office.sh claude-login` y sigue el enlace.
+```bash
+cd /opt/oficina-ia
+./office.sh set ANTHROPIC_API_KEY   # te la pide sin mostrarla
+./office.sh claude-login            # Claude Code con tu cuenta de Claude (Pro o Max)
+./office.sh restart && ./office.sh doctor
+./office.sh routines                # rutinas automáticas (opcional)
+```
 
-### Modelos de Hermes
+### Modelos: todo con Claude
 
-`HERMES_MODEL_MANAGER` y `HERMES_MODEL_WORKERS` en `.env` (con OpenRouter el formato es `anthropic/claude-…`, `openai/…`, etc.). Si los dejas vacíos, configúralos con `./office.sh hermes model` (raíz) y `./office.sh hermes -p investigador model`. Consejo: un modelo fuerte para el Manager y uno más barato para los trabajadores.
+| Quién | Cómo se autentica | Modelo por defecto |
+|---|---|---|
+| **Claude Code** | Tu suscripción de Claude (`./office.sh claude-login`) o `ANTHROPIC_API_KEY` | el de tu cuenta |
+| **Hermes – Manager** | `ANTHROPIC_API_KEY` (pago por uso). Alternativa: tu cuenta de Claude, **solo si es Max con créditos de uso extra** | `claude-opus-5-5` |
+| **Hermes – Investigador, Desarrollador, Bibliotecario** | igual que el Manager | `claude-sonnet-5-5` |
+
+Cambia los modelos en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`) y aplica con `./office.sh restart`.
 
 ## Acceder
 
@@ -83,6 +92,18 @@ Por seguridad todo escucha solo en `127.0.0.1` del VPS (los agentes tienen termi
 **Acceso público con HTTPS:** apunta tres subdominios al VPS, rellena el bloque *opcional* de `.env` (genera el hash con `./office.sh hash-password`) y ejecuta `./office.sh up --public`. Caddy obtiene los certificados y pide contraseña para la oficina; el dashboard y Obsidian usan su propio login.
 
 **Obsidian de escritorio:** `docker compose --profile sync up -d` arranca Syncthing (interfaz en `localhost:8384` por el túnel); comparte la carpeta `/vault` con tu PC.
+
+## Rutinas automáticas
+
+`./office.sh routines` programa en el cron de Hermes tres rutinas, que crean tarjetas para el Bibliotecario (así también se ven en la oficina):
+
+| Rutina | Cuándo | Qué hace |
+|---|---|---|
+| `oficina-inbox` | cada día 08:00 | clasifica lo que dejes en `00 Inbox/` |
+| `oficina-diario` | cada día 21:00 | escribe `04 Diario/AAAA-MM-DD.md` a partir del registro |
+| `oficina-semanal` | lunes 09:00 | revisión semanal y actualización de `Inicio.md` |
+
+`./office.sh routines list` las muestra y `./office.sh routines remove` las borra. Las horas siguen `TZ` de `.env`.
 
 ## Uso diario
 
@@ -150,6 +171,8 @@ docker compose build --pull --no-cache office && ./office.sh up   # actualizar H
 | La oficina carga pero no aparece nadie | Ningún agente ha trabajado aún. Lanza `./office.sh task "di hola" investigador`. Comprueba que `./office.sh url` responde. |
 | Los agentes Hermes no aparecen | `./office.sh hermes plugins list` debe mostrar `pixel-office` habilitado; `./office.sh bootstrap` lo reinstala. |
 | Claude Code no aparece | Los hooks se instalan al arrancar Pixel Agents en `data/hermes/.claude/settings.json`; reinicia con `./office.sh restart`. |
-| El Desarrollador bloquea tarjetas por "no autenticado" | Falta `ANTHROPIC_API_KEY` o `./office.sh claude-login`. |
+| El Desarrollador bloquea tarjetas por "no autenticado" | Falta `./office.sh claude-login` (o `ANTHROPIC_API_KEY`). |
+| Hermes responde con errores 401/403 | Falta `ANTHROPIC_API_KEY`, o tu cuenta de Claude no es Max con uso extra: `./office.sh set ANTHROPIC_API_KEY` y `./office.sh restart`. |
+| Algo no funciona y no sabes qué | `./office.sh doctor` revisa Docker, RAM, servicios, plugin, hooks, vault y credenciales. |
 | Las tarjetas se quedan en `ready` | El asignado no existe o no hay modelo configurado: `./office.sh hermes profile list` y `./office.sh hermes doctor`. |
 | Permisos en `./data` | `HERMES_UID`/`HERMES_GID` en `.env` deben coincidir con tu usuario (`id -u`, `id -g`). |

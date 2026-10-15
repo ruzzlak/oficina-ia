@@ -67,7 +67,11 @@ def substitute(node: Any) -> Any:
             return val
 
         res = _VAR.sub(rep, node)
-        return None if missing and not res.strip() else res
+        if missing and not res.strip():
+            return None
+        if res.isdigit() and _VAR.fullmatch(node):
+            return int(res)  # p. ej. context_length
+        return res
     return node
 
 

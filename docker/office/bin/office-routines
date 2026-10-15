@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# office-routines — rutinas automáticas de la oficina (cron nativo de Hermes).
+#
+#   office-routines install   crea las rutinas que falten (idempotente)
+#   office-routines list      muestra las tareas programadas
+#   office-routines remove    borra las rutinas de la oficina
+#
+# Las rutinas viven en el perfil raíz (Manager), cuyo gateway siempre está en
+# marcha. Cada una crea una tarjeta Kanban para el agente que corresponde, así
+# el trabajo se ve en la oficina pixel-art y queda en el registro del vault.
+set -euo pipefail
+
+PREFIX="oficina"
+# nombre | horario cron | instrucción para el Manager
+ROUTINES=(
+"${PREFIX}-inbox|0 8 * * *|Crea UNA tarjeta Kanban con kanban_create asignada a 'bibliotecario' titulada 'Procesar el Inbox del vault'. Cuerpo: revisa /vault/00 Inbox/; si no hay notas nuevas además de Bienvenida.md, completa la tarjeta sin cambios; si las hay, clasifícalas según /vault/Agentes/Protocolo.md, añade frontmatter y enlaces, y lista en el resumen qué moviste. No hagas nada más."
+"${PREFIX}-diario|0 21 * * *|Crea UNA tarjeta Kanban con kanban_create asignada a 'bibliotecario' titulada 'Diario de la oficina de hoy'. Cuerpo: escribe /vault/04 Diario/<fecha de hoy AAAA-MM-DD>.md con la plantilla /vault/Plantillas/Diario.md, resumiendo /vault/Agentes/_Registro/<fecha de hoy>.md (qué se hizo, bloqueos, pendientes). Si el registro de hoy no existe, escribe una nota breve indicando que no hubo actividad. No hagas nada más."
+"${PREFIX}-semanal|0 9 * * 1|Crea UNA tarjeta Kanban con kanban_create asignada a 'bibliotecario' titulada 'Revisión semanal'. Cuerpo: revisa los registros de los últimos 7 días en /vault/Agentes/_Registro/ y las notas de /vault/01 Proyectos/; actualiza la sección 'Proyectos activos' de /vault/Inicio.md, marca como archivados los proyectos terminados y crea /vault/04 Diario/Semana <AAAA-MM-DD>.md con logros, bloqueos y próximos pasos. No hagas nada más."
+)
+
+existing() { hermes cron list 2>/dev/null || true; }
+
+case "${1:-install}" in
+  install)
+    have="$(existing)"
+    for r in "${ROUTINES[@]}"; do
+      IFS='|' read -r name sched prompt <<<"$r"
+      if grep -q -- "$name" <<<"$have"; then
+        echo "• $name ya existe"
+      else
+        hermes cron create "$sched" "$prompt" --name "$name" --deliver local >/dev/null
+        echo "✓ $name  ($sched)"
+      fi
+    done
+    echo "Horarios en la zona horaria del contenedor (TZ=${TZ:-UTC})."
+    ;;
+  list)
+    existing ;;
+  remove)
+    for r in "${ROUTINES[@]}"; do
+      IFS='|' read -r name _ _ <<<"$r"
+      # Hermes acepta el nombre del trabajo como referencia
+      hermes cron remove "$name" >/dev/null 2>&1 && echo "✓ borrada $name" || echo "• $name no existía"
+    done ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac
