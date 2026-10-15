@@ -11,8 +11,23 @@ case "${PIXEL_OFFICE_ENABLED:-1}" in
 esac
 
 export HOME=/opt/data
+export HERMES_HOME="${HERMES_HOME:-/opt/data}"
 mkdir -p /office
 cd /office
+
+# Bootstrap de la oficina ANTES de Pixel Agents: así su config.json (consentimiento
+# de hooks, zonas) ya existe cuando arranca, y no dependemos solo de cont-init.
+# Es idempotente; si falla, la oficina arranca igualmente.
+py=/opt/hermes/.venv/bin/python; [ -x "$py" ] || py=python3
+for d in /vault /office /opt/data/.pixel-agents /opt/data/.claude; do
+    mkdir -p "$d"; [ "$(id -u)" = 0 ] && chown hermes:hermes "$d" 2>/dev/null
+done
+if [ "$(id -u)" = 0 ]; then
+    chown -R hermes:hermes /vault /office 2>/dev/null || true
+    s6-setuidgid hermes "$py" /opt/office/bin/office-bootstrap.py >&2 || true
+else
+    "$py" /opt/office/bin/office-bootstrap.py >&2 || true
+fi
 
 port="${PIXEL_OFFICE_PORT:-3100}"
 host="${PIXEL_OFFICE_BIND:-0.0.0.0}"

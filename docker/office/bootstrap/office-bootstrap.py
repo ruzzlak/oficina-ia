@@ -282,17 +282,32 @@ def main() -> int:
     agents: List[Dict[str, Any]] = manifest.get("agents", [])
     common: Dict[str, Any] = manifest.get("common", {})
 
-    seed_vault()
-    ensure_workdirs(agents)
+    errors: List[str] = []
+
+    def step(label: str, fn, *args) -> None:
+        # Cada paso es independiente: un fallo (p. ej. permisos en /vault) no
+        # impide instalar los plugins ni el resto.
+        try:
+            fn(*args)
+        except Exception as exc:
+            errors.append(f"{label}: {exc!r}")
+            log(f"ERROR en {label}: {exc!r}")
+
+    step("vault", seed_vault)
+    step("carpetas de trabajo", ensure_workdirs, agents)
     for agent in agents:
-        ensure_profile(agent)
-        apply_config(agent, common)
-        apply_soul(agent)
-        install_plugin(agent)
-        ensure_description(agent)
-    seed_pixel_agents(agents)
-    seed_claude()
-    log("listo ✔  equipo: " + ", ".join(a["name"] for a in agents))
+        n = agent["name"]
+        step(f"perfil {n}", ensure_profile, agent)
+        step(f"config {n}", apply_config, agent, common)
+        step(f"SOUL {n}", apply_soul, agent)
+        step(f"plugin {n}", install_plugin, agent)
+        step(f"descripción {n}", ensure_description, agent)
+    step("Pixel Agents", seed_pixel_agents, agents)
+    step("Claude Code", seed_claude)
+    if errors:
+        log(f"terminado con {len(errors)} error(es); revisa las líneas 'ERROR' de arriba")
+    else:
+        log("listo ✔  equipo: " + ", ".join(a["name"] for a in agents))
     return 0
 
 
