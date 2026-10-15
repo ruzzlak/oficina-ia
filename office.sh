@@ -15,7 +15,11 @@ cmd_setup() {
   if [ ! -f .env ]; then
     cp .env.example .env
     rand() { openssl rand -hex "$1" 2>/dev/null || head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
-    sed -i "s/^HERMES_UID=.*/HERMES_UID=$(id -u)/; s/^HERMES_GID=.*/HERMES_GID=$(id -g)/" .env
+    # Los agentes NUNCA deben correr como root (UID 0). En VPS donde entras como
+    # root (Hostinger, etc.) usamos el usuario por defecto de Hermes, 10000.
+    uid="$(id -u)"; gid="$(id -g)"
+    if [ "$uid" = 0 ]; then uid=10000; gid=10000; fi
+    sed -i "s/^HERMES_UID=.*/HERMES_UID=${uid}/; s/^HERMES_GID=.*/HERMES_GID=${gid}/" .env
     sed -i "s/^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=.*/HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=$(rand 12)/" .env
     sed -i "s/^HERMES_DASHBOARD_BASIC_AUTH_SECRET=.*/HERMES_DASHBOARD_BASIC_AUTH_SECRET=$(rand 32)/" .env
     sed -i "s/^OBSIDIAN_WEB_PASSWORD=.*/OBSIDIAN_WEB_PASSWORD=$(rand 12)/" .env
@@ -32,6 +36,9 @@ cmd_setup() {
 cmd_up() {
   need_env
   mkdir -p data/hermes data/vault data/proyectos data/obsidian-config
+  if grep -qE '^HERMES_UID=0\s*$' .env; then
+    die "HERMES_UID=0 en .env: los agentes no deben correr como root. Pon HERMES_UID=10000 y HERMES_GID=10000."
+  fi
   if [ "${1:-}" = "--public" ]; then $C --profile public up -d --build; else $C up -d --build; fi
   echo "Esperando a la oficina…"
   for _ in $(seq 1 60); do
