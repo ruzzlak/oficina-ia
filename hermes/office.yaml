@@ -1,0 +1,69 @@
+# Definición del equipo de la Oficina IA.
+#
+# El bootstrap del contenedor (office-bootstrap.py) lee este archivo en cada
+# arranque y:
+#   * crea los perfiles de Hermes que falten (`hermes profile create`),
+#   * fusiona `config` en el config.yaml de cada perfil (sin borrar tus cambios),
+#   * copia SOUL.md si el perfil aún no tiene uno,
+#   * instala/actualiza el plugin pixel-office en todos los perfiles.
+#
+# Los valores ${VAR} se sustituyen con variables de entorno (.env). Si la
+# variable está vacía, esa clave NO se toca (útil para gestionar el modelo
+# desde `hermes model` o el dashboard).
+
+# Configuración común a todos los perfiles
+common:
+  model:
+    provider: "${HERMES_PROVIDER}"
+  plugins:
+    enabled: [pixel-office]
+  terminal:
+    backend: local
+    cwd: /office
+
+agents:
+  # El perfil raíz de Hermes (/opt/data). Ejecuta el gateway, el dispatcher del
+  # Kanban y el dashboard. Es con quien hablas.
+  - name: manager
+    root: true
+    description: "Orquestadora. Descompone objetivos en tarjetas Kanban y las asigna al equipo. No ejecuta trabajo."
+    area: Dirección
+    config:
+      model:
+        default: "${HERMES_MODEL_MANAGER}"
+      toolsets: [hermes-cli, kanban]
+      agent:
+        disabled_toolsets: [terminal, browser, code_execution, computer_use]
+      dashboard:
+        # Solo se usa con el perfil "public" (Caddy con IP fija en la red interna)
+        public_url: "${HERMES_DASHBOARD_PUBLIC_URL}"
+        trusted_proxies: ["172.28.0.10"]
+      kanban:
+        dispatch_in_gateway: true
+        auto_decompose: true
+        default_assignee: investigador
+
+  - name: investigador
+    description: "Investiga en la web y en documentación, compara opciones y escribe notas de investigación con fuentes en el vault de Obsidian."
+    area: Investigación
+    config:
+      model:
+        default: "${HERMES_MODEL_WORKERS}"
+
+  - name: desarrollador
+    description: "Implementa código, scripts y automatizaciones en /office/proyectos delegando la escritura de código en Claude Code; verifica con tests y documenta."
+    area: Desarrollo
+    config:
+      model:
+        default: "${HERMES_MODEL_WORKERS}"
+      terminal:
+        timeout: 900
+
+  - name: bibliotecario
+    description: "Organiza, enlaza y resume el vault de Obsidian: notas permanentes, MOCs, Inbox, cierres de proyecto y diario de la oficina."
+    area: Biblioteca
+    config:
+      model:
+        default: "${HERMES_MODEL_WORKERS}"
+      agent:
+        disabled_toolsets: [browser, computer_use]

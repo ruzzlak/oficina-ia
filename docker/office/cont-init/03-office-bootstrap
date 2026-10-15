@@ -1,0 +1,29 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Bootstrap de la Oficina IA. Corre como root después del setup de Hermes
+# (01-hermes-setup ya remapeó UID/GID y preparó /opt/data).
+set -e
+
+export HOME=/opt/data
+export HERMES_HOME="${HERMES_HOME:-/opt/data}"
+
+# Volúmenes de la oficina: que sean del usuario hermes (UID remapeable).
+for d in /vault /office; do
+    mkdir -p "$d"
+    owner="$(stat -c %u "$d" 2>/dev/null || echo 0)"
+    if [ "$owner" != "$(id -u hermes)" ]; then
+        echo "[oficina] ajustando propietario de $d" >&2
+        chown -R hermes:hermes "$d" 2>/dev/null || true
+    fi
+done
+mkdir -p /opt/data/.pixel-agents /opt/data/.claude
+chown hermes:hermes /opt/data/.pixel-agents /opt/data/.claude 2>/dev/null || true
+
+py=/opt/hermes/.venv/bin/python
+[ -x "$py" ] || py=python3
+
+if [ "$(id -u)" = 0 ]; then
+    s6-setuidgid hermes "$py" /opt/office/bin/office-bootstrap.py || true
+else
+    "$py" /opt/office/bin/office-bootstrap.py || true
+fi

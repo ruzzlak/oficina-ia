@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# office-url — imprime la URL privilegiada de la oficina pixel-art (con token).
+# Sin el token la oficina se ve, pero no se puede editar el layout ni lanzar agentes.
+set -euo pipefail
+dir="${HOME:-/opt/data}/.pixel-agents"
+base="${1:-${OFFICE_PUBLIC_URL:-http://localhost:${OFFICE_HOST_PORT:-3100}}}"
+token=""
+for f in "$dir"/servers/*.json "$dir/server.json"; do
+  [ -f "$f" ] || continue
+  token="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("token",""))' "$f" 2>/dev/null || true)"
+  [ -n "$token" ] && break
+done
+if [ -z "$token" ]; then
+  echo "La oficina aún no ha arrancado (no hay registro en $dir/servers)." >&2
+  exit 1
+fi
+echo "${base%/}/?token=${token}"

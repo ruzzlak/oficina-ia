@@ -1,0 +1,17 @@
+name: pixel-office
+version: 1.0.0
+description: "Puente Hermes -> Pixel Agents. Cada perfil de Hermes aparece como un personaje en la oficina pixel-art, y los eventos del tablero Kanban quedan registrados en el vault de Obsidian."
+author: "Oficina IA"
+provides_hooks:
+  - on_session_start
+  - pre_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - on_session_end
+  - on_human_input_request
+  - on_human_input_resolved
+  - subagent_start
+  - subagent_stop
+  - kanban_task_claimed
+  - kanban_task_completed
+  - kanban_task_blocked

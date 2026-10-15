@@ -1,0 +1,123 @@
+# Oficina IA — Pixel Agents + Hermes Agent + Claude Code + Obsidian
+#
+#   cp .env.example .env   # y rellena tus claves
+#   ./office.sh up
+#
+# Por seguridad todos los puertos se publican SOLO en 127.0.0.1 del VPS.
+# Accede con un túnel SSH (ver README) o activa el perfil "public" (Caddy con
+# HTTPS y contraseña):  docker compose --profile public up -d
+
+name: oficina-ia
+
+x-uid: &uid
+  HERMES_UID: ${HERMES_UID:-10000}
+  HERMES_GID: ${HERMES_GID:-10000}
+
+services:
+  # ── La oficina: Hermes (gateway + Kanban + dashboard) + Pixel Agents + Claude Code
+  office:
+    build:
+      context: .
+      dockerfile: docker/office/Dockerfile
+      args:
+        HERMES_IMAGE: ${HERMES_IMAGE:-nousresearch/hermes-agent:latest}
+        PIXEL_AGENTS_SOURCE: ${PIXEL_AGENTS_SOURCE:-npm}
+        PIXEL_AGENTS_VERSION: ${PIXEL_AGENTS_VERSION:-latest}
+        PIXEL_AGENTS_REF: ${PIXEL_AGENTS_REF:-v1.4.1}
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+    image: oficina-ia/office:local
+    container_name: oficina-office
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    env_file: .env
+    environment:
+      <<: *uid
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_PORT: "9119"
+      PIXEL_OFFICE_PORT: "3100"
+      OFFICE_HOST_PORT: ${OFFICE_PORT:-3100}
+    volumes:
+      - ./data/hermes:/opt/data             # Hermes (perfiles, memoria, kanban.db) + ~/.claude + ~/.pixel-agents
+      - ./data/vault:/vault                 # vault de Obsidian compartido
+      - ./data/proyectos:/office/proyectos  # repositorios de código
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${OFFICE_PORT:-3100}:3100"   # oficina pixel-art
+      - "${BIND_ADDR:-127.0.0.1}:${DASHBOARD_PORT:-9119}:9119" # dashboard de Hermes (Kanban, chat, config)
+    networks:
+      oficina:
+        ipv4_address: 172.28.0.2
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3100/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  # ── Obsidian en el navegador (mismo vault que usan los agentes)
+  obsidian:
+    image: lscr.io/linuxserver/obsidian:latest
+    container_name: oficina-obsidian
+    restart: unless-stopped
+    environment:
+      PUID: ${HERMES_UID:-10000}
+      PGID: ${HERMES_GID:-10000}
+      TZ: ${TZ:-America/New_York}
+      CUSTOM_USER: ${OBSIDIAN_WEB_USER:-oficina}
+      PASSWORD: ${OBSIDIAN_WEB_PASSWORD:?Define OBSIDIAN_WEB_PASSWORD en .env}
+      TITLE: Oficina IA — Vault
+    volumes:
+      - ./data/obsidian-config:/config
+      - ./data/vault:/vault
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${OBSIDIAN_PORT:-3000}:3000"
+    shm_size: "1gb"
+    security_opt:
+      - seccomp:unconfined
+    networks:
+      oficina:
+        ipv4_address: 172.28.0.3
+
+  # ── (opcional) HTTPS + contraseña delante de todo:  --profile public
+  caddy:
+    image: caddy:2-alpine
+    container_name: oficina-caddy
+    profiles: ["public"]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on: [office, obsidian]
+    networks:
+      oficina:
+        ipv4_address: 172.28.0.10
+
+  # ── (opcional) Sincroniza el vault con tu Obsidian de escritorio:  --profile sync
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: oficina-syncthing
+    profiles: ["sync"]
+    restart: unless-stopped
+    environment:
+      PUID: ${HERMES_UID:-10000}
+      PGID: ${HERMES_GID:-10000}
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ./data/syncthing:/config
+      - ./data/vault:/vault
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8384:8384"  # interfaz web de Syncthing
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+    networks:
+      oficina:
+        ipv4_address: 172.28.0.4
+
+networks:
+  oficina:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

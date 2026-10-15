@@ -1,0 +1,22 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Pixel Agents — servidor standalone de la oficina pixel-art (supervisado por s6).
+#
+# Corre como el usuario hermes con HOME=/opt/data para compartir ~/.claude
+# (transcripts y hooks de Claude Code) y ~/.pixel-agents (registro + token)
+# con Hermes y su plugin pixel-office.
+
+case "${PIXEL_OFFICE_ENABLED:-1}" in
+    0|false|FALSE|no|NO) exec sleep infinity ;;
+esac
+
+export HOME=/opt/data
+mkdir -p /office
+cd /office
+
+port="${PIXEL_OFFICE_PORT:-3100}"
+host="${PIXEL_OFFICE_BIND:-0.0.0.0}"
+
+echo "[pixel-office] iniciando Pixel Agents en ${host}:${port}" >&2
+[ "$(id -u)" = 0 ] || exec pixel-agents --host "$host" --port "$port"
+exec s6-setuidgid hermes pixel-agents --host "$host" --port "$port"

@@ -1,0 +1,24 @@
+# Caddy — HTTPS automático (Let's Encrypt) delante de la oficina.
+# Requiere que los tres dominios apunten (registro A/AAAA) a la IP del VPS.
+# Genera el hash de la contraseña con:  ./office.sh hash-password
+{
+	email {$ACME_EMAIL}
+}
+
+# Oficina pixel-art: Pixel Agents no trae login, así que lo protege Caddy.
+{$OFFICE_DOMAIN} {
+	basic_auth {
+		{$OFFICE_WEB_USER} {$OFFICE_WEB_PASSWORD_HASH}
+	}
+	reverse_proxy 172.28.0.2:3100
+}
+
+# Dashboard de Hermes: tiene su propio login (HERMES_DASHBOARD_BASIC_AUTH_*).
+{$DASHBOARD_DOMAIN} {
+	reverse_proxy 172.28.0.2:9119
+}
+
+# Obsidian web: tiene su propio login (OBSIDIAN_WEB_USER / OBSIDIAN_WEB_PASSWORD).
+{$VAULT_DOMAIN} {
+	reverse_proxy 172.28.0.3:3000
+}

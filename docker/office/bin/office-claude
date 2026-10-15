@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# office-claude — ejecuta Claude Code (modo no interactivo) dentro de un proyecto
+# de la oficina. Lo usa el agente "desarrollador" de Hermes como sus manos.
+#
+#   office-claude <proyecto> "<instrucción>"
+#   office-claude <proyecto> --continue "<siguiente instrucción>"   # misma conversación
+#
+# La sesión aparece como personaje en la oficina pixel-art (los hooks de
+# Pixel Agents están instalados en ~/.claude/settings.json).
+#
+# Variables:
+#   OFFICE_CLAUDE_ALLOWED_TOOLS  herramientas permitidas sin preguntar
+#   OFFICE_CLAUDE_MAX_TURNS      tope de turnos por llamada (por defecto 40)
+#   OFFICE_CLAUDE_MODEL          modelo de Claude Code (opcional)
+set -euo pipefail
+
+usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ $# -ge 2 ] || usage
+
+project="$1"; shift
+case "$project" in
+  */*|.*|"") echo "office-claude: nombre de proyecto inválido: '$project' (sin barras)" >&2; exit 2 ;;
+esac
+
+continue_flag=()
+if [ "${1:-}" = "--continue" ]; then continue_flag=(--continue); shift; fi
+prompt="$*"
+[ -n "$prompt" ] || usage
+
+root="${OFFICE_WORKDIR:-/office}/proyectos"
+dir="$root/$project"
+mkdir -p "$dir"
+cd "$dir"
+if [ ! -d .git ]; then
+  git init -q
+  git config user.name  >/dev/null 2>&1 || git config user.name  "Oficina IA"
+  git config user.email >/dev/null 2>&1 || git config user.email "oficina@localhost"
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "office-claude: Claude Code no está instalado en este contenedor" >&2; exit 3
+fi
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ ! -s "${HOME}/.claude/.credentials.json" ]; then
+  echo "office-claude: Claude Code no está autenticado. En el servidor ejecuta: ./office.sh claude-login" >&2
+  exit 4
+fi
+
+allowed="${OFFICE_CLAUDE_ALLOWED_TOOLS:-Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,TodoWrite,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(python:*),Bash(pip:*),Bash(uv:*),Bash(pytest:*),Bash(ls:*),Bash(mkdir:*),Bash(cat:*),Bash(make:*)}"
+args=(-p "$prompt"
+      --output-format text
+      --max-turns "${OFFICE_CLAUDE_MAX_TURNS:-40}"
+      --allowedTools "$allowed"
+      --add-dir "${OFFICE_VAULT:-/vault}")
+[ -n "${OFFICE_CLAUDE_MODEL:-}" ] && args+=(--model "$OFFICE_CLAUDE_MODEL")
+
+echo "▶ Claude Code en $dir"
+status=0
+claude ${continue_flag[@]+"${continue_flag[@]}"} "${args[@]}" || status=$?
+echo
+echo "── git status ──"
+git status --short | head -50 || true
+exit $status

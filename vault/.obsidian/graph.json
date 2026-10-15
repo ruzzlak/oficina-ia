@@ -1,0 +1,34 @@
+{
+  "colorGroups": [
+    {
+      "query": "path:\"01 Proyectos\"",
+      "color": {
+        "a": 1,
+        "rgb": 3064446
+      }
+    },
+    {
+      "query": "path:\"02 Investigación\"",
+      "color": {
+        "a": 1,
+        "rgb": 5155038
+      }
+    },
+    {
+      "query": "path:\"03 Conocimiento\"",
+      "color": {
+        "a": 1,
+        "rgb": 10182117
+      }
+    },
+    {
+      "query": "path:Agentes",
+      "color": {
+        "a": 1,
+        "rgb": 16038210
+      }
+    }
+  ],
+  "showTags": false,
+  "showOrphans": true
+}
