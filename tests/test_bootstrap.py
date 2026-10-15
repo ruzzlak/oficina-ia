@@ -73,7 +73,11 @@ class BootstrapTest(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def run_bootstrap(self):
-        r = subprocess.run([sys.executable, str(SCRIPT)], env=self.env, capture_output=True, text=True)
+        env = dict(self.env)
+        # OFFICE_TEST_BOOTSTRAP_PYTHONPATH permite simular la imagen sin PyYAML (solo ruamel)
+        if os.environ.get("OFFICE_TEST_BOOTSTRAP_PYTHONPATH"):
+            env["PYTHONPATH"] = os.environ["OFFICE_TEST_BOOTSTRAP_PYTHONPATH"]
+        r = subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertNotIn("ERROR", r.stdout, r.stdout)
         return r.stdout

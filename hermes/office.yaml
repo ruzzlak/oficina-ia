@@ -20,6 +20,11 @@ common:
   terminal:
     backend: local
     cwd: /office
+  # Herramientas vía el Tool Gateway de Nous Portal (búsqueda web y navegador)
+  web:
+    backend: "${HERMES_WEB_BACKEND}"
+  browser:
+    cloud_provider: "${HERMES_BROWSER_PROVIDER}"
 
 agents:
   # El perfil raíz de Hermes (/opt/data). Ejecuta el gateway, el dispatcher del

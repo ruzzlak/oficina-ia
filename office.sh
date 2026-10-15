@@ -138,7 +138,7 @@ cmd_doctor() {
       echo "  • Claude Code sin sesión (opcional): ./office.sh claude-login"
     fi
     if [ "$(envget HERMES_PROVIDER)" = nous ]; then
-      if $EXEC hermes portal info 2>/dev/null | grep -qi "logged in"; then
+      if $EXEC hermes portal info 2>&1 | sed "s/\x1b\[[0-9;]*m//g" | grep -qi "logged in"; then
         pass "Nous Portal: sesión iniciada"
       else
         fail "Nous Portal sin sesión → ./office.sh portal-login"
@@ -188,6 +188,8 @@ case "${1:-help}" in
                   cmd_set HERMES_PROVIDER nous
                   case "$(envget HERMES_MODEL_MANAGER)" in ""|claude-*) cmd_set HERMES_MODEL_MANAGER deepseek/deepseek-v4-pro ;; esac
                   case "$(envget HERMES_MODEL_WORKERS)" in ""|claude-*) cmd_set HERMES_MODEL_WORKERS deepseek/deepseek-v4-pro ;; esac
+                  [ -n "$(envget HERMES_WEB_BACKEND)" ] || cmd_set HERMES_WEB_BACKEND nous
+                  [ -n "$(envget HERMES_BROWSER_PROVIDER)" ] || cmd_set HERMES_BROWSER_PROVIDER nous
                   echo "• Aplicando el cambio de proveedor…"; $C up -d --force-recreate office >/dev/null
                   for _ in $(seq 1 60); do $EXEC true 2>/dev/null && break; sleep 2; done
                 fi

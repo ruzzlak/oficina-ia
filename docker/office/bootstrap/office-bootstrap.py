@@ -26,7 +26,35 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-import yaml
+try:  # PyYAML no siempre está en el entorno de Hermes; Hermes trae ruamel.yaml
+    import yaml
+except ImportError:  # pragma: no cover - depende de la imagen
+    import io as _io
+    from types import SimpleNamespace as _NS
+
+    from ruamel.yaml import YAML as _YAML
+    from ruamel.yaml.error import YAMLError as _YAMLError
+
+    def _plain(node):
+        # convierte CommentedMap/Seq de ruamel en dict/list normales
+        if isinstance(node, dict):
+            return {k: _plain(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [_plain(v) for v in node]
+        return node
+
+    def _safe_load(text):
+        return _plain(_YAML(typ="safe", pure=True).load(text))
+
+    def _safe_dump(data, sort_keys=False, allow_unicode=True, **_kw):
+        y = _YAML()
+        y.default_flow_style = False
+        y.allow_unicode = allow_unicode
+        buf = _io.StringIO()
+        y.dump(data, buf)
+        return buf.getvalue()
+
+    yaml = _NS(safe_load=_safe_load, safe_dump=_safe_dump, YAMLError=_YAMLError)
 
 OFFICE = Path(os.environ.get("OFFICE_SHARE", "/opt/office"))
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", "/opt/data"))
