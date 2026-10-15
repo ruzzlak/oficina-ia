@@ -186,8 +186,8 @@ case "${1:-help}" in
                 need_env
                 if [ "$(envget HERMES_PROVIDER)" != nous ]; then
                   cmd_set HERMES_PROVIDER nous
-                  case "$(envget HERMES_MODEL_MANAGER)" in ""|claude-*) cmd_set HERMES_MODEL_MANAGER deepseek/deepseek-v4-pro ;; esac
-                  case "$(envget HERMES_MODEL_WORKERS)" in ""|claude-*) cmd_set HERMES_MODEL_WORKERS deepseek/deepseek-v4-pro ;; esac
+                  case "$(envget HERMES_MODEL_MANAGER)" in ""|claude-*) cmd_set HERMES_MODEL_MANAGER stealth/space-bunny-alpha ;; esac
+                  case "$(envget HERMES_MODEL_WORKERS)" in ""|claude-*) cmd_set HERMES_MODEL_WORKERS stealth/space-bunny-alpha ;; esac
                   [ -n "$(envget HERMES_WEB_BACKEND)" ] || cmd_set HERMES_WEB_BACKEND nous
                   [ -n "$(envget HERMES_BROWSER_PROVIDER)" ] || cmd_set HERMES_BROWSER_PROVIDER nous
                   echo "• Aplicando el cambio de proveedor…"; $C up -d --force-recreate office >/dev/null

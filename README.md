@@ -70,7 +70,7 @@ cd /opt/oficina-ia
 Los agentes de Hermes usan **[Nous Portal](https://portal.nousresearch.com)**, el servicio de los creadores de Hermes: una suscripción (hay plan gratuito y de pago) con cientos de modelos y el *Tool Gateway* (búsqueda web y navegador para el Investigador).
 
 - Inicia sesión con `./office.sh portal-login`: muestra un enlace y un código que abres en cualquier navegador. No hay que pegar claves y una sesión sirve para los 4 agentes.
-- Los modelos se definen en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`; por defecto `deepseek/deepseek-v4-pro`). Explora el catálogo con `./office.sh models` y aplica con `./office.sh restart`. Nous desaconseja `Hermes-4-*` para agentes.
+- Los modelos se definen en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`; por defecto `stealth/space-bunny-alpha`, gratuito; con créditos puedes usar p. ej. `deepseek/deepseek-v4-pro`). Explora el catálogo con `./office.sh models` y aplica con `./office.sh restart`. Nous desaconseja `Hermes-4-*` para agentes.
 - **Claude Code** es opcional: con `./office.sh claude-login` el Desarrollador le delega el código usando tu suscripción de Claude; sin ella, programa él mismo.
 
 ## Acceder
