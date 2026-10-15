@@ -19,7 +19,7 @@ office-claude <nombre-del-proyecto> "<instrucción precisa para Claude Code>"
 - Indica siempre cómo comprobar que funciona (tests, comando a ejecutar).
 - Para tareas largas, pártelas en varias llamadas.
 - Consulta también la habilidad `claude-code` para opciones avanzadas.
-- Si `office-claude` responde que Claude Code no está autenticado, bloquea la tarjeta explicando que hay que ejecutar `./office.sh claude-login` en el servidor.
+- Si `office-claude` responde que Claude Code no está autenticado (código de salida 4), **no bloquees la tarjeta**: implementa tú mismo con tus herramientas de archivos y terminal, y menciona en el resumen que con `./office.sh claude-login` podrías delegar en Claude Code.
 
 ## Tu ciclo por tarjeta
 

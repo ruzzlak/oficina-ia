@@ -16,6 +16,7 @@ Uso manual:  office-bootstrap.py [--dry-run]
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -177,15 +178,33 @@ def apply_soul(agent: Dict[str, Any]) -> None:
     home = profile_home(agent)
     dst = home / "SOUL.md"
     marker = home / ".office-soul"
+    new_text = src.read_text(encoding="utf-8")
     if marker.exists():
-        return  # ya instalada una vez: a partir de aquí la personalidad es del usuario
+        # Ya instalada. Solo se actualiza si el usuario NO la ha editado, es decir,
+        # si sigue siendo una versión que publicamos nosotros (hash conocido).
+        if not dst.exists():
+            return
+        cur_hash = hashlib.sha256(dst.read_bytes()).hexdigest()
+        new_hash = hashlib.sha256(new_text.encode("utf-8")).hexdigest()
+        history_file = OFFICE / "hermes" / "soul-history.json"
+        try:
+            known = set(json.loads(history_file.read_text(encoding="utf-8")).get(agent["name"], []))
+        except Exception:
+            known = set()
+        known.add(marker.read_text(encoding="utf-8").strip().split()[-1])
+        if cur_hash != new_hash and cur_hash in known:
+            log(f"SOUL.md de {agent['name']} actualizada (no tenía cambios tuyos)")
+            write_text(dst, new_text)
+            write_text(marker, f"instalada por office-bootstrap; borra este archivo para reinstalarla {new_hash}\n")
+        return
     current = dst.read_text(encoding="utf-8") if dst.exists() else ""
     stock = STOCK_SOUL.read_text(encoding="utf-8") if STOCK_SOUL.exists() else None
     if current.strip() and current != stock and not DRY:
         shutil.copy2(dst, home / "SOUL.md.antes-de-oficina")  # por si había una propia
     log(f"SOUL.md de {agent['name']}")
-    write_text(dst, src.read_text(encoding="utf-8"))
-    write_text(marker, "instalada por office-bootstrap; borra este archivo para reinstalarla\n")
+    write_text(dst, new_text)
+    new_hash = hashlib.sha256(new_text.encode("utf-8")).hexdigest()
+    write_text(marker, f"instalada por office-bootstrap; borra este archivo para reinstalarla {new_hash}\n")
 
 
 def install_plugin(agent: Dict[str, Any]) -> None:

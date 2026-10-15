@@ -59,21 +59,19 @@ Instala Docker si falta, añade swap si hace falta, descarga el proyecto en `/op
 
 ```bash
 cd /opt/oficina-ia
-./office.sh set ANTHROPIC_API_KEY   # te la pide sin mostrarla
-./office.sh claude-login            # Claude Code con tu cuenta de Claude (Pro o Max)
+./office.sh portal-login            # Nous Portal: te da un enlace y un código, sin claves
+./office.sh claude-login            # (opcional) Claude Code con tu cuenta de Claude
 ./office.sh restart && ./office.sh doctor
 ./office.sh routines                # rutinas automáticas (opcional)
 ```
 
-### Modelos: todo con Claude
+### Modelos: Nous Portal
 
-| Quién | Cómo se autentica | Modelo por defecto |
-|---|---|---|
-| **Claude Code** | Tu suscripción de Claude (`./office.sh claude-login`) o `ANTHROPIC_API_KEY` | el de tu cuenta |
-| **Hermes – Manager** | `ANTHROPIC_API_KEY` (pago por uso). Alternativa: tu cuenta de Claude, **solo si es Max con créditos de uso extra** | `claude-opus-5-5` |
-| **Hermes – Investigador, Desarrollador, Bibliotecario** | igual que el Manager | `claude-sonnet-5-5` |
+Los agentes de Hermes usan **[Nous Portal](https://portal.nousresearch.com)**, el servicio de los creadores de Hermes: una suscripción (hay plan gratuito y de pago) con cientos de modelos y el *Tool Gateway* (búsqueda web y navegador para el Investigador).
 
-Cambia los modelos en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`) y aplica con `./office.sh restart`.
+- Inicia sesión con `./office.sh portal-login`: muestra un enlace y un código que abres en cualquier navegador. No hay que pegar claves y una sesión sirve para los 4 agentes.
+- Los modelos se definen en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`; por defecto `deepseek/deepseek-v4-pro`). Explora el catálogo con `./office.sh models` y aplica con `./office.sh restart`. Nous desaconseja `Hermes-4-*` para agentes.
+- **Claude Code** es opcional: con `./office.sh claude-login` el Desarrollador le delega el código usando tu suscripción de Claude; sin ella, programa él mismo.
 
 ## Acceder
 
@@ -171,8 +169,8 @@ docker compose build --pull --no-cache office && ./office.sh up   # actualizar H
 | La oficina carga pero no aparece nadie | Ningún agente ha trabajado aún. Lanza `./office.sh task "di hola" investigador`. Comprueba que `./office.sh url` responde. |
 | Los agentes Hermes no aparecen | `./office.sh hermes plugins list` debe mostrar `pixel-office` habilitado; `./office.sh bootstrap` lo reinstala. |
 | Claude Code no aparece | Los hooks se instalan al arrancar Pixel Agents en `data/hermes/.claude/settings.json`; reinicia con `./office.sh restart`. |
-| El Desarrollador bloquea tarjetas por "no autenticado" | Falta `./office.sh claude-login` (o `ANTHROPIC_API_KEY`). |
-| Hermes responde con errores 401/403 | Falta `ANTHROPIC_API_KEY`, o tu cuenta de Claude no es Max con uso extra: `./office.sh set ANTHROPIC_API_KEY` y `./office.sh restart`. |
+| Hermes responde con errores 401/403 | Sin sesión en Nous Portal: `./office.sh portal-login`. Revisa tu plan con `./office.sh portal info`. |
+| Un modelo da error de acceso | Tu plan del Portal no lo incluye: elige otro con `./office.sh models` o cámbialo en `.env`. |
 | Algo no funciona y no sabes qué | `./office.sh doctor` revisa Docker, RAM, servicios, plugin, hooks, vault y credenciales. |
 | Las tarjetas se quedan en `ready` | El asignado no existe o no hay modelo configurado: `./office.sh hermes profile list` y `./office.sh hermes doctor`. |
 | Permisos en `./data` | `HERMES_UID`/`HERMES_GID` en `.env` deben coincidir con tu usuario (`id -u`, `id -g`). |

@@ -71,7 +71,7 @@ say "4/5 Configuración"
 
 if [ "$START" = 0 ]; then
   say "Listo. Falta tu clave y arrancar:"
-  echo "  cd $DIR && ./office.sh set ANTHROPIC_API_KEY && ./office.sh up"
+  echo "  cd $DIR && ./office.sh up && ./office.sh portal-login"
   exit 0
 fi
 
@@ -84,8 +84,9 @@ cat <<EOF
 ────────────────────────────────────────────────────────────
  Oficina IA instalada en $DIR
    cd $DIR
-   ./office.sh set ANTHROPIC_API_KEY   # si aún no la pusiste
-   ./office.sh claude-login            # Claude Code con tu cuenta de Claude
+   ./office.sh portal-login            # Nous Portal: enlace + código, sin claves
+   ./office.sh restart && ./office.sh doctor
+   ./office.sh claude-login            # (opcional) Claude Code con tu cuenta de Claude
    ./office.sh routines                # rutinas automáticas (Inbox, diario, revisión)
    ./office.sh tunnel-help             # cómo abrir la oficina desde tu PC
 ────────────────────────────────────────────────────────────

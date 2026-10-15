@@ -58,10 +58,6 @@ cmd_up() {
   if grep -qE '^HERMES_UID=0\s*$' .env; then
     die "HERMES_UID=0 en .env: los agentes no deben correr como root. Pon HERMES_UID=10000 y HERMES_GID=10000."
   fi
-  if [ -z "$(envget ANTHROPIC_API_KEY)" ]; then
-    echo "⚠ Sin ANTHROPIC_API_KEY: Hermes solo funcionará si tu cuenta de Claude es Max con uso extra"
-    echo "  (./office.sh set ANTHROPIC_API_KEY  o  ./office.sh claude-login)"
-  fi
   if [ "${1:-}" = "--public" ]; then $C --profile public up -d --build
   else $C up -d --build; fi
   echo "Esperando a la oficina…"
@@ -136,17 +132,17 @@ cmd_doctor() {
         && pass "Perfil $a con plugin pixel-office" || fail "Perfil $a sin plugin (./office.sh bootstrap)"
     done
     $EXEC test -f /vault/Inicio.md && pass "Vault de Obsidian inicializado" || fail "Vault vacío"
-    login=0; $EXEC test -s /opt/data/.claude/.credentials.json && login=1
-    key="$(envget ANTHROPIC_API_KEY)"
-    { [ -n "$key" ] || [ "$login" = 1 ]; } && pass "Claude Code autenticado" || fail "Claude Code sin sesión → ./office.sh claude-login"
-    if [ -n "$key" ]; then
-      code=$(curl -s -o /dev/null -w '%{http_code}' https://api.anthropic.com/v1/models \
-             -H "x-api-key: $key" -H "anthropic-version: 2023-06-01" || echo 000)
-      [ "$code" = 200 ] && pass "Clave de Anthropic válida (Hermes)" || fail "Anthropic respondió $code (¿clave correcta?)"
-    elif [ "$login" = 1 ]; then
-      pass "Hermes usará tu cuenta de Claude (requiere Max + uso extra)"
+    if $EXEC test -s /opt/data/.claude/.credentials.json || [ -n "$(envget ANTHROPIC_API_KEY)" ]; then
+      pass "Claude Code con sesión (el Desarrollador lo usará)"
     else
-      fail "Hermes sin credenciales de Claude"
+      echo "  • Claude Code sin sesión (opcional): ./office.sh claude-login"
+    fi
+    if [ "$(envget HERMES_PROVIDER)" = nous ]; then
+      if $EXEC hermes portal info 2>/dev/null | grep -qi "logged in"; then
+        pass "Nous Portal: sesión iniciada"
+      else
+        fail "Nous Portal sin sesión → ./office.sh portal-login"
+      fi
     fi
   fi
   echo
@@ -185,6 +181,19 @@ case "${1:-help}" in
   hermes)       shift; $EXEC_IT hermes "$@" ;;
   claude)       shift; $C exec -it -u hermes -e HOME=/opt/data -w /office/proyectos office claude "$@" ;;
   claude-login) $EXEC_IT claude auth login ;;
+  portal-login) # Nous Portal: código de dispositivo, no necesita pegar claves.
+                # Si el .env aún apunta a otro proveedor (instalación anterior), lo pasa a Nous.
+                need_env
+                if [ "$(envget HERMES_PROVIDER)" != nous ]; then
+                  cmd_set HERMES_PROVIDER nous
+                  case "$(envget HERMES_MODEL_MANAGER)" in ""|claude-*) cmd_set HERMES_MODEL_MANAGER deepseek/deepseek-v4-pro ;; esac
+                  case "$(envget HERMES_MODEL_WORKERS)" in ""|claude-*) cmd_set HERMES_MODEL_WORKERS deepseek/deepseek-v4-pro ;; esac
+                  echo "• Aplicando el cambio de proveedor…"; $C up -d --force-recreate office >/dev/null
+                  for _ in $(seq 1 60); do $EXEC true 2>/dev/null && break; sleep 2; done
+                fi
+                $EXEC_IT hermes portal ;;
+  portal)       shift; $EXEC_IT hermes portal "${@:-info}" ;;
+  models)       $EXEC_IT hermes model ;;
   shell)        $EXEC_IT bash ;;
   bootstrap)    $EXEC /opt/hermes/.venv/bin/python /opt/office/bin/office-bootstrap.py ;;
   routines)     shift; $EXEC office-routines "${@:-install}" ;;
@@ -215,7 +224,10 @@ Oficina IA — comandos
   ./office.sh task "objetivo" [ag]  crea una tarjeta Kanban (sin agente: el manager la descompone)
   ./office.sh board                 tablero Kanban
   ./office.sh claude [args]         Claude Code interactivo en /office/proyectos
-  ./office.sh claude-login          inicia sesión de Claude Code con tu cuenta de Claude
+  ./office.sh portal-login          inicia sesión en Nous Portal (modelos de los agentes Hermes)
+  ./office.sh portal [info|tools]   estado de la suscripción y del Tool Gateway
+  ./office.sh models                elige modelo de forma interactiva
+  ./office.sh claude-login          (opcional) Claude Code con tu cuenta de Claude
   ./office.sh routines [install|list|remove]   rutinas automáticas (diario, Inbox, revisión)
   ./office.sh hermes <args>         cualquier comando de Hermes
 

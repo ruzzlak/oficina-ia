@@ -133,6 +133,26 @@ class BootstrapTest(unittest.TestCase):
         root = yaml.safe_load((self.hhome / "config.yaml").read_text())
         self.assertEqual(root["plugins"]["enabled"].count("pixel-office"), 1)
 
+    def test_soul_upgrade_only_when_unedited(self):
+        self.run_bootstrap()
+        old = subprocess.run(
+            ["git", "-C", str(ROOT), "show", "d4253ab:hermes/profiles/desarrollador/SOUL.md"],
+            capture_output=True, text=True,
+        ).stdout
+        self.assertIn("bloquea la tarjeta explicando", old)
+        dev = self.hhome / "profiles/desarrollador"
+        # instalación antigua: SOUL de serie sin tocar + marcador sin hash
+        (dev / "SOUL.md").write_text(old, encoding="utf-8")
+        (dev / ".office-soul").write_text("instalada por office-bootstrap; borra este archivo para reinstalarla\n")
+        # y otra personalidad editada por el usuario con el mismo marcador antiguo
+        bib = self.hhome / "profiles/bibliotecario"
+        (bib / "SOUL.md").write_text("mi bibliotecario", encoding="utf-8")
+        (bib / ".office-soul").write_text("instalada por office-bootstrap; borra este archivo para reinstalarla\n")
+        out = self.run_bootstrap()
+        self.assertIn("SOUL.md de desarrollador actualizada", out)
+        self.assertIn("no bloquees la tarjeta", (dev / "SOUL.md").read_text(encoding="utf-8"))
+        self.assertEqual((bib / "SOUL.md").read_text(encoding="utf-8"), "mi bibliotecario")
+
 
 if __name__ == "__main__":
     unittest.main()
