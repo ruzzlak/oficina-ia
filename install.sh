@@ -17,14 +17,15 @@ say()  { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 die()  { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-GH_USER="${1:-${OFICINA_GH_USER:-}}"
+GH_USER="${1:-${OFICINA_GH_USER:-ruzzlak}}"
 START=1
 for a in "$@"; do [ "$a" = "--no-start" ] && START=0; done
 DIR="${OFICINA_DIR:-/opt/oficina-ia}"
 BRANCH="${OFICINA_BRANCH:-main}"
 
 [ "$(id -u)" = 0 ] || die "Ejecútalo como root (o con sudo)."
-[ -n "$GH_USER" ] && [ "$GH_USER" != "--no-start" ] || die "Uso: install.sh <usuario-de-github> [--no-start]"
+[ "$GH_USER" = "--no-start" ] && GH_USER="${OFICINA_GH_USER:-ruzzlak}"
+[ -n "$GH_USER" ] || die "Uso: install.sh <usuario-de-github> [--no-start]"
 REPO="https://github.com/${GH_USER}/oficina-ia.git"
 
 say "1/5 Paquetes básicos"

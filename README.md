@@ -52,7 +52,7 @@ Requisitos: VPS con Ubuntu/Debian, **8 GB de RAM** recomendados (Hostinger KVM 2
 **Un solo comando** (como root, por SSH o desde el terminal del navegador de hPanel):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<usuario>/oficina-ia/main/install.sh | bash -s -- <usuario>
+curl -fsSL https://raw.githubusercontent.com/ruzzlak/oficina-ia/main/install.sh | bash -s -- ruzzlak
 ```
 
 Instala Docker si falta, añade swap si hace falta, descarga el proyecto en `/opt/oficina-ia`, genera `.env` con contraseñas aleatorias, construye y arranca. Después:
