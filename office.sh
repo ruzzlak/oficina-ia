@@ -49,7 +49,7 @@ cmd_set() {
     cat .env > "$tmp"; printf '%s=%s\n' "$key" "$val" >> "$tmp"
   fi
   cat "$tmp" > .env; rm -f "$tmp"
-  case "$key" in *KEY*|*TOKEN*|*PASSWORD*|*SECRET*) echo "✓ $key guardada (${#val} caracteres)";; *) echo "✓ $key=$val";; esac
+  case "$key" in *_ENV) echo "✓ $key=$val";; *KEY*|*TOKEN*|*PASSWORD*|*SECRET*) echo "✓ $key guardada (${#val} caracteres)";; *) echo "✓ $key=$val";; esac
 }
 
 cmd_up() {
@@ -137,6 +137,17 @@ cmd_doctor() {
     else
       echo "  • Claude Code sin sesión (opcional): ./office.sh claude-login"
     fi
+    if [ "$(envget HERMES_PROVIDER)" = custom ]; then
+      kv="$(envget HERMES_KEY_ENV)"
+      if [ -n "$(envget HERMES_BASE_URL)" ] && [ -n "$kv" ] && [ -n "$(envget "$kv")" ]; then
+        pass "Endpoint propio: $(envget HERMES_BASE_URL) (clave en $kv)"
+        $EXEC grep -q "$kv=" /opt/data/.env 2>/dev/null && pass "Clave copiada a los perfiles" \
+          || fail "La clave no está en los perfiles (./office.sh bootstrap)"
+        echo "  • Prueba de conexión y herramientas: ./office.sh test-model"
+      else
+        fail "HERMES_PROVIDER=custom sin URL o sin clave → ./office.sh hive"
+      fi
+    fi
     if [ "$(envget HERMES_PROVIDER)" = nous ]; then
       if $EXEC hermes portal info 2>&1 | sed "s/\x1b\[[0-9;]*m//g" | grep -qi "logged in"; then
         pass "Nous Portal: sesión iniciada"
@@ -148,6 +159,47 @@ cmd_doctor() {
   echo
   echo "Resultado: $ok correctos, $bad con problemas"
   [ "$bad" = 0 ]
+}
+
+# ./office.sh hive  — conecta los agentes a DeepSeek a través de Hive AI (thehive.ai)
+cmd_hive() {
+  need_env
+  echo "Hive AI → DeepSeek para los agentes de Hermes"
+  echo "Necesitas la SECRET KEY de una clave creada en Hive → 'Service API Keys' (no la Access Key)."
+  if [ -z "$(envget HIVE_API_KEY)" ] || [ "${1:-}" = "--key" ]; then
+    cmd_set HIVE_API_KEY
+  else
+    echo "• HIVE_API_KEY ya está guardada (para cambiarla: ./office.sh hive --key)"
+  fi
+  model="${HIVE_MODEL:-deepseek-ai/deepseek-v4.1-flash}"
+  # Guardar la configuración actual para poder deshacer si la prueba falla
+  local saved=() k
+  for k in HERMES_PROVIDER HERMES_BASE_URL HERMES_KEY_ENV HERMES_CONTEXT_LENGTH HERMES_MODEL_MANAGER HERMES_MODEL_WORKERS; do
+    saved+=("$k" "$(envget "$k")")
+  done
+  cmd_set HERMES_PROVIDER custom
+  cmd_set HERMES_BASE_URL "${HIVE_BASE_URL:-https://api-cdn.thehive.ai/api/v3}"
+  cmd_set HERMES_KEY_ENV HIVE_API_KEY
+  cmd_set HERMES_CONTEXT_LENGTH "${HIVE_CONTEXT_LENGTH:-131072}"
+  cmd_set HERMES_MODEL_MANAGER "$model"
+  cmd_set HERMES_MODEL_WORKERS "$model"
+  echo
+  if python3 docker/office/bin/office-test-model .env; then
+    echo; echo "Aplicando…"; $C up -d --force-recreate office >/dev/null && echo "✓ Agentes usando $model vía Hive AI"
+  else
+    rc=$?
+    echo
+    if [ "$rc" = 2 ]; then
+      echo "⚠ La conexión funciona pero el modelo no usa herramientas bien. Se aplica igualmente;"
+      echo "  prueba otro modelo de Hive con:  HIVE_MODEL=<id> ./office.sh hive"
+      $C up -d --force-recreate office >/dev/null
+    else
+      local i
+      for ((i = 0; i < ${#saved[@]}; i += 2)); do cmd_set "${saved[i]}" "${saved[i+1]}" >/dev/null; done
+      echo "✗ No se aplicó: se restauró tu configuración anterior ($(envget HERMES_PROVIDER))."
+      echo "  Corrige lo indicado arriba y repite ./office.sh hive  (otra clave: ./office.sh hive --key)"
+    fi
+  fi
 }
 
 cmd_hash_password() {
@@ -196,6 +248,8 @@ case "${1:-help}" in
                 $EXEC_IT hermes portal ;;
   portal)       shift; $EXEC_IT hermes portal "${@:-info}" ;;
   models)       $EXEC_IT hermes model ;;
+  hive)         shift; cmd_hive "$@" ;;
+  test-model)   python3 docker/office/bin/office-test-model .env ;;
   shell)        $EXEC_IT bash ;;
   bootstrap)    $EXEC /opt/hermes/.venv/bin/python /opt/office/bin/office-bootstrap.py ;;
   routines)     shift; $EXEC office-routines "${@:-install}" ;;
@@ -229,6 +283,8 @@ Oficina IA — comandos
   ./office.sh portal-login          inicia sesión en Nous Portal (modelos de los agentes Hermes)
   ./office.sh portal [info|tools]   estado de la suscripción y del Tool Gateway
   ./office.sh models                elige modelo de forma interactiva
+  ./office.sh hive [--key]          usa DeepSeek a través de Hive AI (pide la Secret Key)
+  ./office.sh test-model            prueba conexión y uso de herramientas del endpoint propio
   ./office.sh claude-login          (opcional) Claude Code con tu cuenta de Claude
   ./office.sh routines [install|list|remove]   rutinas automáticas (diario, Inbox, revisión)
   ./office.sh hermes <args>         cualquier comando de Hermes

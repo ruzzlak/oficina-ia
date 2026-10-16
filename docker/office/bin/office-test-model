@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""office-test-model — prueba el endpoint propio (HERMES_PROVIDER=custom) del .env.
+
+Hace dos peticiones al estilo OpenAI (chat/completions):
+  1. una respuesta simple      → ¿la URL, la clave y el modelo son correctos?
+  2. una llamada a herramienta → ¿el modelo sabe usar herramientas? (los agentes lo necesitan)
+
+Uso (en el VPS):  ./office.sh test-model      o     python3 docker/office/bin/office-test-model [ruta/.env]
+Nunca imprime la clave.
+"""
+from __future__ import annotations
+
+import json
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+def load_env(path: Path) -> dict:
+    env = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+
+
+def post(url: str, key: str, body: dict, timeout: int = 90):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")
+    except Exception as e:  # red, DNS, timeout
+        return 0, repr(e)
+
+
+def explain(code: int, text: str) -> str:
+    hint = {
+        0: "no hubo conexión (¿URL mal escrita o sin internet en el VPS?)",
+        401: "clave rechazada: usa la SECRET KEY (no la API Key/Access Key) y revisa que esté entera",
+        403: "clave sin permiso para este modelo, o cuenta sin saldo",
+        404: "URL o nombre de modelo incorrecto",
+        402: "sin saldo/créditos en la cuenta",
+        429: "límite de uso alcanzado; espera un poco",
+    }.get(code, "")
+    return f"HTTP {code}{' — ' + hint if hint else ''}\n    respuesta: {text[:400]}"
+
+
+def main() -> int:
+    env_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[3] / ".env"
+    if not env_path.exists():
+        env_path = Path(".env")
+    env = load_env(env_path)
+    base = (env.get("HERMES_BASE_URL") or "").rstrip("/")
+    key_var = env.get("HERMES_KEY_ENV") or ""
+    key = env.get(key_var, "") if key_var else ""
+    model = env.get("HERMES_MODEL_WORKERS") or env.get("HERMES_MODEL_MANAGER") or ""
+
+    print("Prueba del modelo")
+    print(f"  URL     : {base or '(vacía)'}")
+    print(f"  Modelo  : {model or '(vacío)'}")
+    print(f"  Clave   : {key_var or '(sin HERMES_KEY_ENV)'} → {'definida, ' + str(len(key)) + ' caracteres' if key else 'VACÍA'}")
+    if not base or not key or not model:
+        print("✗ Falta URL, clave o modelo en .env. Usa: ./office.sh hive")
+        return 1
+    if base.endswith("/chat/completions"):
+        print("✗ HERMES_BASE_URL no debe terminar en /chat/completions; quítalo.")
+        return 1
+    url = base + "/chat/completions"
+
+    print("\n1) Respuesta simple…")
+    code, text = post(url, key, {"model": model, "messages": [{"role": "user", "content": "Responde solo: OK"}], "max_tokens": 20})
+    if code != 200:
+        print("  ✗ " + explain(code, text))
+        return 1
+    try:
+        reply = json.loads(text)["choices"][0]["message"].get("content") or ""
+    except Exception:
+        print("  ✗ La respuesta no tiene el formato OpenAI esperado:\n    " + text[:400])
+        return 1
+    print(f"  ✓ Responde: {reply.strip()[:80]!r}")
+
+    print("\n2) Uso de herramientas (necesario para los agentes)…")
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Devuelve el tiempo de una ciudad",
+            "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        },
+    }]
+    code, text = post(url, key, {
+        "model": model,
+        "messages": [{"role": "user", "content": "¿Qué tiempo hace en Madrid? Usa la herramienta."}],
+        "tools": tools,
+        "tool_choice": "auto",
+        "max_tokens": 200,
+    })
+    if code != 200:
+        print("  ✗ " + explain(code, text))
+        print("  → El endpoint no acepta 'tools'. Los agentes de Hermes NO funcionarán bien con este modelo.")
+        return 2
+    try:
+        msg = json.loads(text)["choices"][0]["message"]
+    except Exception:
+        print("  ✗ Formato inesperado:\n    " + text[:400])
+        return 2
+    calls = msg.get("tool_calls") or []
+    if calls:
+        print(f"  ✓ Llamó a la herramienta: {calls[0].get('function', {}).get('name')}"
+              f"({calls[0].get('function', {}).get('arguments')})")
+        print("\n✓ Todo correcto: este modelo sirve para los agentes. Aplica con ./office.sh restart")
+        return 0
+    print("  ✗ Respondió con texto en vez de usar la herramienta:")
+    print("    " + (msg.get("content") or "")[:200])
+    print("  → Este modelo/endpoint no hace 'tool calling'; los agentes no podrán usar herramientas.")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

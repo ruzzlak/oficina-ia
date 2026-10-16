@@ -195,8 +195,46 @@ def apply_config(agent: Dict[str, Any], common: Dict[str, Any]) -> None:
         return
     overlay = deep_merge(json.loads(json.dumps(common)), agent.get("config") or {})
     overlay = substitute(overlay) or {}
+    # Al pasar de un endpoint propio (custom) a un proveedor con nombre, la URL y
+    # la variable de clave antiguas sobran y confundirían a Hermes.
+    provider = (os.environ.get("HERMES_PROVIDER") or "").strip()
+    model = cfg.get("model")
+    if provider and provider != "custom" and isinstance(model, dict):
+        for k in ("base_url", "key_env", "api_key"):
+            model.pop(k, None)
     merged = deep_merge(cfg, overlay)
     write_text(cfg_path, yaml.safe_dump(merged, sort_keys=False, allow_unicode=True))
+
+
+# Claves que se copian al .env de cada perfil. Los trabajadores del Kanban leen sus
+# credenciales del .env de SU perfil, no siempre del entorno del contenedor.
+DEFAULT_SYNC_SECRETS = "HIVE_API_KEY,DEEPSEEK_API_KEY,OPENROUTER_API_KEY,ANTHROPIC_API_KEY"
+
+
+def sync_secrets(agent: Dict[str, Any]) -> None:
+    names = [n.strip() for n in (os.environ.get("OFFICE_SYNC_SECRETS") or DEFAULT_SYNC_SECRETS).split(",") if n.strip()]
+    key_env = (os.environ.get("HERMES_KEY_ENV") or "").strip()
+    if key_env and key_env not in names:
+        names.append(key_env)
+    values = {n: os.environ[n] for n in names if os.environ.get(n)}
+    if not values:
+        return
+    env_path = profile_home(agent) / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    out, seen = [], set()
+    for line in lines:
+        key = line.split("=", 1)[0].strip()
+        if key in values:
+            out.append(f"{key}={values[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    out += [f"{k}={v}" for k, v in values.items() if k not in seen]
+    new = "\n".join(out) + "\n"
+    if new != ("\n".join(lines) + "\n" if lines else ""):
+        write_text(env_path, new)
+        if not DRY:
+            os.chmod(env_path, 0o600)
 
 
 def apply_soul(agent: Dict[str, Any]) -> None:
@@ -329,6 +367,7 @@ def main() -> int:
         step(f"config {n}", apply_config, agent, common)
         step(f"SOUL {n}", apply_soul, agent)
         step(f"plugin {n}", install_plugin, agent)
+        step(f"claves {n}", sync_secrets, agent)
         step(f"descripción {n}", ensure_description, agent)
     step("Pixel Agents", seed_pixel_agents, agents)
     step("Claude Code", seed_claude)

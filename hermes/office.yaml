@@ -15,6 +15,10 @@
 common:
   model:
     provider: "${HERMES_PROVIDER}"
+    # Solo para endpoints propios (HERMES_PROVIDER=custom), p. ej. Hive AI:
+    base_url: "${HERMES_BASE_URL}"
+    key_env: "${HERMES_KEY_ENV}"
+    context_length: "${HERMES_CONTEXT_LENGTH}"
   plugins:
     enabled: [pixel-office]
   terminal:

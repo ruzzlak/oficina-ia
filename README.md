@@ -73,6 +73,15 @@ Los agentes de Hermes usan **[Nous Portal](https://portal.nousresearch.com)**, e
 - Los modelos se definen en `.env` (`HERMES_MODEL_MANAGER`, `HERMES_MODEL_WORKERS`; por defecto `stealth/space-bunny-alpha`, gratuito; con créditos puedes usar p. ej. `deepseek/deepseek-v4-pro`). Explora el catálogo con `./office.sh models` y aplica con `./office.sh restart`. Nous desaconseja `Hermes-4-*` para agentes.
 - **Claude Code** es opcional: con `./office.sh claude-login` el Desarrollador le delega el código usando tu suscripción de Claude; sin ella, programa él mismo.
 
+### Alternativa: DeepSeek a través de Hive AI
+
+```bash
+./office.sh hive          # pide la Secret Key de Hive, configura y prueba
+./office.sh test-model    # vuelve a probar conexión y uso de herramientas
+```
+
+Usa el endpoint compatible con OpenAI de Hive (`https://api-cdn.thehive.ai/api/v3`) con el modelo `deepseek-ai/deepseek-v4.1-flash` (otro: `HIVE_MODEL=<id> ./office.sh hive`). La clave se guarda en `HIVE_API_KEY` y se copia al `.env` de cada perfil, porque los trabajadores del Kanban la leen de ahí. Si la prueba falla, se restaura la configuración anterior. Para volver a Nous: `./office.sh set HERMES_PROVIDER nous && ./office.sh restart`.
+
 ## Acceder
 
 Por seguridad todo escucha solo en `127.0.0.1` del VPS (los agentes tienen terminal: no expongas nada sin contraseña). Desde tu ordenador:
